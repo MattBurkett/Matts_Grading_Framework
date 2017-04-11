@@ -364,16 +364,27 @@ double AssignPartialCredit(project* thisProject, char* studentOutput, int testID
 			}
 			else if(strcmp(buf, "remove\n") == 0)
 			{
-				printf("removing this partial credit\n");
+				printf("  removing this partial credit\n");
 				sprintf(buf, "rm %s %s", matchesBuffScore, matchesBuff);
 				system(buf);
 				printf("\r  Test %d partial credit score: ", testID);
 				fgets(buf, 256, stdin); 
-				studentSubmission->studentScores[testID].score = atof(buf);
+				double thisScore = atof(buf);
+				studentSubmission->studentScores[testID].score = thisScore;
 				printf("\r  Test %d partial credit description (max 256 characters): ", testID);
 				fgets(buf, 256, stdin); buf[strcspn(buf, "\n")] = '\0';
 
 				strcpy(studentSubmission->studentScores[testID].description, buf);
+
+				char buff1[512], buff2[512], buff3[512], nameBuff[256];
+				strcpy(nameBuff, studentSubmission->studentName); *strstr(nameBuff, " ") = '_'; *strstr(nameBuff, " ") = '\0'; 
+				sprintf(buff1, "mkdir %sGrading_Materials/partial_credits/test%d 2>/dev/null; ", thisProject->rootDir, testID);
+				sprintf(buff2, "cp %s %sGrading_Materials/partial_credits/test%d/%s%d.txt; ", studentOutput, thisProject->rootDir, testID, nameBuff, testID);
+				sprintf(buff3, "echo \"%1.1f\n%s\" > %sGrading_Materials/partial_credits/test%d/%s%d.txt.score;", thisScore, studentSubmission->studentScores[testID].description, thisProject->rootDir, testID, nameBuff, testID);
+				strcat(buff1, buff2);
+				strcat(buff1, buff3);
+				system(buff1);
+
 				return studentSubmission->studentScores[testID].score;
 			}
 			else if(strcmp(buf, "subl\n") == 0)
