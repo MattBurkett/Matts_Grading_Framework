@@ -2,7 +2,6 @@
 #include <stdlib.h>	
 #include <string.h>
 #include <strings.h>
-//#include <bsd/string.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -819,7 +818,7 @@ int main(int argc, char*argv[]){
 	char rootDir[256]; getcwd(rootDir, 245); 
 	char* tmp = &rootDir[0]; while(1) if(strcmp(tmp, "Grading_Materials") == 0) break; else tmp++; *tmp = '\0';
 
-	system("bash 2> /dev/null");
+	//system("bash 2> /dev/null");
 
 	project *thisProject;
 	thisProject = ReadTestCases(rootDir);
