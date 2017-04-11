@@ -10,19 +10,11 @@
 #include <unistd.h>
 #include <errno.h>
 
-typedef struct 		partialcredit{
-	double 			score;							//score which is given
-	char			description[256];				//description of why points were deducted.
-	char*			studentPartialCreditFile;		//triggering output file
-	struct partialcredit* next;						//next partial credit of the same testID
-}partialcredit;	
-
 typedef struct 		test{
 	char* 			testFileName;			//of the form: '/Grading_Materials/test1.txt'		*must be absolute file paths*
 	char* 			solutionFileName;		//of the form: '/Grading_Materials/solution1.txt'	*must be absolute file paths*
 	int 			testID;					//testID, will start from 1 and increment
 	int 			maxScore;				//maximum amount of points in this test.
-	partialcredit* 	partialCredit;			//all the partial credits which were given for this particular test case.
 }test;
 
 typedef struct 		score{
@@ -50,6 +42,7 @@ typedef struct 		project{
 }project;
 
 const double latePercentage = 0.75;
+int autoMode = 0;
 
 int atoic(char* a){
 	char* str = malloc(sizeof(a)*(strlen(a)+1));
@@ -76,22 +69,6 @@ void RemoveLocalSymLinks(){
 	system("find -type l -delete");
 }
 
-//not yet implemented
-void SetUpAllSymLinks(char* root){
-}
-
-void RemoveAllSymLinks(char* root){
-	chdir(root);
-	system("find -type l -delete");
-}
-
-void FreePartialCredit(partialcredit* cur){
-	if(cur == NULL)
-		return;
-	FreePartialCredit(cur->next);
-	free(cur);
-}
-
 void FreeMem(project* thisProject){
 	for(int i = 0; i < thisProject->submissionCount; i++)
 	{
@@ -111,7 +88,6 @@ void FreeMem(project* thisProject){
 	{
 		free(thisProject->tests[i].testFileName);
 		free(thisProject->tests[i].solutionFileName);
-		FreePartialCredit(thisProject->tests[i].partialCredit);
 	}
 	free(thisProject->tests);
 	free(thisProject->rootDir);
@@ -120,9 +96,11 @@ void FreeMem(project* thisProject){
 
 //on return of n != 0, skip that many lines of grading
 int ShowStatus(project* thisProject, int curSubmissionNum){
+	system("clear");
 	char buff[256];
 	static char prevLine[256] = { 'g', 'r', 'a', 'd', 'e', '\n', '\0'};
 	printf("rootDir: %s\n", thisProject->rootDir);
+	if(autoMode == 1) printf("auto mode: \e[0;32mON\e[0m\n"); else printf("auto mode: \e[0;31mOFF\e[0m\n");
 	printf("current status queue: \n");
 	const int printQueueSize = 10;
 	char firstName[printQueueSize][64];
@@ -155,6 +133,7 @@ int ShowStatus(project* thisProject, int curSubmissionNum){
 	printf("  goto %%N - grades students starting at element N\n");
 	printf("  gotos %%s - grades students starting at the first student dir begining with %%s\n");
 	printf("  exit - Exits the program (don't forget to save first!)\n");
+	printf("  auto (on or off) - while on, automatically use found partial credit score\n");
 	printf("  grade - Grades the next student submission\n");
 	printf("  *nothing* - Repeates previous skip command or Grades the next student submission\n");
 	printf("\n[options] ");
@@ -205,6 +184,15 @@ int ShowStatus(project* thisProject, int curSubmissionNum){
 				if(strstr(thisProject->submissions[i].studentDirName, buff) != NULL)
 					return i - curSubmissionNum;
 			printf("%s not found\n", buff);
+		}
+		else if(strncmp(buff, "auto", 4) == 0)
+		{
+			if(strncmp(buff+5, "on", 2) == 0)
+				autoMode = 1;
+			else
+				autoMode = 0;
+			strcpy(prevLine, "grade\n");
+			return ShowStatus(thisProject, curSubmissionNum);
 		}
 		else if(strcmp(buff, "grade\n") == 0)
 		{
@@ -323,8 +311,6 @@ char* GetDiffCount(project* thisProject, int testID){
 
 double AssignPartialCredit(project* thisProject, char* studentOutput, int testID, submission* studentSubmission){
 	char buf[256];
-	partialcredit* cur = thisProject->tests[testID].partialCredit;
-	partialcredit* prev = cur;
 	int freeFlag = 0;
 	char buff[512], buff2[256];
 	char* matchesBuff = (char*)malloc(sizeof(char)*512); matchesBuff[0] = '\0';
@@ -333,7 +319,6 @@ double AssignPartialCredit(project* thisProject, char* studentOutput, int testID
 	sprintf(buff2, "mkdir %sGrading_Materials/partial_credits/test%d 2>/dev/null", thisProject->rootDir, testID);
 	system(buff2);
 	system(buff);
-	//system("rm partialcreditmatches.txt");
 	FILE* matches;
 	matches = fopen("partialcreditmatches.txt", "r");
 	if(matches == NULL)
@@ -351,16 +336,16 @@ double AssignPartialCredit(project* thisProject, char* studentOutput, int testID
 			exit(-1);
 		}
 		fgets(buff, 256, matches);
-		fgets(buff2, 256, matches);
+		fgets(buff2, 256, matches); *strstr(buff2, "\n") = '\0';
 		fclose(matches);
 
-		printf("\rTest %d: .......... \e[0;93m[Found Partial Credit]\e[0m\n", testID);
-		printf("  Filename: %s\n", matchesBuff);
-		printf("  Description: %s", buff2);
-		printf("  Found matching partial credit (%.1f/%d) use? ('yes', 'no', 'subl', or 'remove') \n  ", atoi(buff), thisProject->tests[testID].maxScore);
+		if(autoMode == 0) printf("\rTest %d: .......... \e[0;93m[Found Partial Credit]\e[0m\n", testID);
+		if(autoMode == 0) printf("  Filename: %s\n", matchesBuff);
+		if(autoMode == 0) printf("  Description: %s\n", buff2);
+		if(autoMode == 0) printf("  Found matching partial credit (%.1f/%d) use? ('yes', 'no', 'subl', or 'remove') \n  ", atof(buff), thisProject->tests[testID].maxScore);
 		while(1)
 		{
-			fgets(buf, 256, stdin); 
+			if(autoMode == 0) fgets(buf, 256, stdin); else strcpy(buf, "yes\n");
 			if(strcmp(buf, "no\n") == 0)
 			{
 				printf("\r  Test %d partial credit score: ", testID);
@@ -375,7 +360,7 @@ double AssignPartialCredit(project* thisProject, char* studentOutput, int testID
 			else if(strcmp(buf, "yes\n") == 0)
 			{
 				strcpy(studentSubmission->studentScores[testID].description, buff2);
-				studentSubmission->studentScores[testID].score = atoi(buff);
+				studentSubmission->studentScores[testID].score = atof(buff);
 				return studentSubmission->studentScores[testID].score;
 			}
 			else if(strcmp(buf, "remove\n") == 0)
@@ -417,14 +402,6 @@ double AssignPartialCredit(project* thisProject, char* studentOutput, int testID
 		strcpy(studentSubmission->studentScores[testID].description, buf);
 		studentSubmission->studentScores[testID].score = thisScore;
 
-		/*
-		cur = (partialcredit*)malloc(sizeof(partialcredit));
-		cur->score = thisScore;
-		strcpy(cur->description, buf);
-		cur->studentPartialCreditFile = studentOutput;
-		cur->next = thisProject->tests[testID].partialCredit;
-		*/
-
 		printf("\r  Save for automated grading? ('yes' or 'no') ");
 		fgets(buf, 256, stdin);
 		if(strcmp(buf,"yes\n") == 0)
@@ -437,7 +414,6 @@ double AssignPartialCredit(project* thisProject, char* studentOutput, int testID
 			strcat(buff1, buff2);
 			strcat(buff1, buff3);
 			system(buff1);
-			//thisProject->tests[testID].partialCredit = cur;
 		}
 		else if(strcmp(buf,"no\n") == 0)
 		{	
@@ -446,103 +422,6 @@ double AssignPartialCredit(project* thisProject, char* studentOutput, int testID
 		return thisScore;
 
 	}
-	//fclose(matches); //TODO: FIX SEGFAULT
-
-	//return 0.0;
-
-	/*
-
-	while(cur != NULL)
-	{
-		printf("%s\n", cur->studentPartialCreditFile);
-		printf("%s\n", studentOutput);
-		if(Filecmp(cur->studentPartialCreditFile, studentOutput) == 1)
-			break;
-		prev = cur;
-		cur = cur->next;
-	}
-	if(cur == NULL)
-	{
-		char* diffCount = GetDiffCount(thisProject, testID);
-		printf("\rTest %d: .......... \e[0;93m[Assigning Partial Credit]\e[0m %s\n", testID, diffCount);
-		free(diffCount);
-		printf("  Test %d: view output with sublime? ('yes' or 'no') ", testID);
-		fgets(buf, 256, stdin);
-		if(strcmp(buf, "yes\n") == 0)
-			system("subl ./");
-		printf("\r  Test %d: partial credit score: ", testID);
-		fgets(buf, 256, stdin);
-		double thisScore = atof(buf);
-		printf("\r  Test %d partial credit description (max 256 characters): ", testID);
-		fgets(buf, 256, stdin); buf[strcspn(buf, "\n")] = '\0';
-		
-		char buf2[256];
-		sprintf(buf2, "%s -%.1f ", buf, thisProject->tests[testID].maxScore - thisScore);
-		strcpy(buf, buf2);
-
-		cur = (partialcredit*)malloc(sizeof(partialcredit));
-		cur->score = thisScore;
-		strcpy(cur->description, buf);
-		strcpy(studentSubmission->studentScores[testID].description, buf);
-		cur->studentPartialCreditFile = studentOutput;
-		cur->next = thisProject->tests[testID].partialCredit;
-		
-		printf("\r  Save for automated grading? ('yes' or 'no') ");
-		fgets(buf, 256, stdin);
-		if(strcmp(buf,"yes\n") == 0)
-		{	
-			char buff1[512], buff2[512], buff3[512], nameBuff[256];
-			strcpy(nameBuff, studentSubmission->studentName); *strstr(nameBuff, " ") = '_'; *strstr(nameBuff, " ") = '\0'; 
-			sprintf(buff1, "mkdir %sGrading_Materials/partial_credits/test%d 2>/dev/null; ", thisProject->rootDir, testID);
-			sprintf(buff2, "cp %s %sGrading_Materials/partial_credits/test%d/%s%d.txt; ", studentOutput, thisProject->rootDir, testID, nameBuff, testID);
-			sprintf(buff3, "echo \"%1.1f\n%s\" > %sGrading_Materials/partial_credits/test%d/%s%d.txt.score;", thisScore, studentSubmission->studentScores[testID].description, thisProject->rootDir, testID, nameBuff, testID);
-			strcat(buff1, buff2);
-			strcat(buff1, buff3);
-			system(buff1);
-			thisProject->tests[testID].partialCredit = cur;
-		}
-		else if(strcmp(buf,"no\n") == 0)
-		{	
-			freeFlag = 1;
-		}
-		
-	}
-	else
-	{
-		while(1)
-		{
-			
-			printf("\rTest %d: Found matching partial credit (%.1f/%d) use? ('yes', 'no', or 'subl') \n", testID, cur->score, thisProject->tests[testID].maxScore);
-			printf("  Description: %s\n", cur->description);
-			fgets(buf, 256, stdin); 
-			if(strcmp(buf, "no\n") == 0)
-			{
-				printf("\r  Test %d partial credit score: ", testID);
-				fgets(buf, 256, stdin); 
-				studentSubmission->studentScores[testID].score = atof(buf);
-				printf("\r  Test %d partial credit description (max 256 characters): ", testID);
-				fgets(buf, 256, stdin); buf[strcspn(buf, "\n")] = '\0';
-				
-				strcpy(studentSubmission->studentScores[testID].description, buf);
-				return studentSubmission->studentScores[testID].score;
-			}
-			else if(strcmp(buf, "yes\n") == 0)
-				break;
-
-			else if(strcmp(buf, "subl\n") == 0)
-				system("subl ./");
-		}
-	}
-
-	studentSubmission->studentScores[testID].score = cur->score;
-	if(freeFlag == 1)
-	{
-		double score = cur->score;
-		free(cur);
-		return score;
-	}
-	return cur->score;
-	*/
 }
 
 project *ReadTestCases(char* rootDir){
@@ -587,7 +466,6 @@ project *ReadTestCases(char* rootDir){
 			thisProject->tests[testNum].testFileName = (char*)malloc(sizeof(char)*(strlen(curFile->d_name)+strlen(rootDir)+strlen("Grading_Materials/test_cases/")+1));
 			sprintf(thisProject->tests[testNum].testFileName, "%s%s%s", rootDir, "Grading_Materials/test_cases/", curFile->d_name);
 			thisProject->tests[testNum].testID = testNum;
-			thisProject->tests[testNum].partialCredit = NULL;
 		}
 		else if (strncmp(curFile->d_name, "solution", 8) == 0)
 		{
@@ -597,7 +475,6 @@ project *ReadTestCases(char* rootDir){
 			thisProject->tests[solutionNum].solutionFileName = (char*)malloc(sizeof(char)*(strlen(curFile->d_name)+strlen(rootDir)+strlen("Grading_Materials/test_cases/")+1));
 			sprintf(thisProject->tests[solutionNum].solutionFileName, "%s%s%s", rootDir, "Grading_Materials/test_cases/", curFile->d_name);
 			thisProject->tests[solutionNum].testID = solutionNum;	//superfluous
-			thisProject->tests[solutionNum].partialCredit = NULL;	
 		}
 		else if (strncmp(curFile->d_name, "valgrind", 8) == 0)
 		{
@@ -606,7 +483,6 @@ project *ReadTestCases(char* rootDir){
 			thisProject->valTests[valgrindNum].testFileName = (char*)malloc(sizeof(char)*(strlen(curFile->d_name)+strlen(rootDir)+strlen("Grading_Materials/test_cases/")+1));
 			sprintf(thisProject->valTests[valgrindNum].testFileName, "%s%s%s", rootDir, "Grading_Materials/test_cases/", curFile->d_name);
 			thisProject->valTests[valgrindNum].testID = valgrindNum;
-			thisProject->valTests[valgrindNum].partialCredit = NULL;
 		}
 	}
 	closedir(testsDir);
@@ -620,11 +496,6 @@ project *ReadTestCases(char* rootDir){
 	thisProject->submissions = NULL;
 	thisProject->testCount = numTests;
 	thisProject->rootDir = (char*)malloc(sizeof(char)*(strlen(rootDir)+1));
-	for(int i = 0; i < defaultMax; i++)
-	{
-		thisProject->tests[i].partialCredit = NULL;
-		//thisProject->tests[i].partialCredit = (partialcredit*)malloc(sizeof(partialcredit)*defaultMax);
-	}
 	strcpy(thisProject->rootDir, rootDir);
 	return thisProject;
 }	
@@ -758,7 +629,7 @@ void GradeSubmissions(project* thisProject){
 	char buf[buffSize];
 	for(int i = 0; i < thisProject->submissionCount; i++)
 	{
-		system("clear");
+		
 		int status = ShowStatus(thisProject, i);
 		if(status != 0)
 		{
@@ -772,7 +643,8 @@ void GradeSubmissions(project* thisProject){
 		else
 			late = "On Time";
 		printf("Student Name: %s- %s\n", thisProject->submissions[i].studentName, late);
-		printf("Folder:  %s\n\n", thisProject->submissions[i].studentDirName);
+		printf("Folder:  %s\n", thisProject->submissions[i].studentDirName);
+		if(autoMode == 1) printf("auto mode: \e[0;32mON\e[0m\n\n"); else printf("auto mode: \e[0;31mOFF\e[0m\n\n");
 
 		chdir(thisProject->submissions[i].studentDirName);
 
@@ -901,7 +773,7 @@ void GradeSubmissions(project* thisProject){
 			buf[strcspn(buf, "\n")] = '\0';
 		}
 
-		printf("Grade Summary: \n\n");
+		printf("Grade Summary: \n");
 		for(int j = 1; j < thisProject->testCount; j++)
 		{
 			if(thisProject->submissions[i].studentScores[j].score < 0.1)
@@ -913,17 +785,16 @@ void GradeSubmissions(project* thisProject){
 		}
 
 		int descFlag = 0;
-		printf("Description: ");
+		printf("\nDescription: ");
 		for(int j = 1; j < thisProject->testCount; j++)
 		{
 			if(strlen(thisProject->submissions[i].studentScores[j].description) != 0)
 			{
-				if(descFlag++ != 0)
-					printf("; ");
+				printf("\n");
 				printf("Test %d: %s", j, thisProject->submissions[i].studentScores[j].description);
 			}
 		}
-		printf(".\nContinue...");
+		printf("\n\nContinue...");
 		fgets(buf, 256, stdin);
 	}
 }
@@ -947,6 +818,8 @@ void GetMaxScores(project* thisProject){
 int main(int argc, char*argv[]){
 	char rootDir[256]; getcwd(rootDir, 245); 
 	char* tmp = &rootDir[0]; while(1) if(strcmp(tmp, "Grading_Materials") == 0) break; else tmp++; *tmp = '\0';
+
+	system("bash 2> /dev/null");
 
 	project *thisProject;
 	thisProject = ReadTestCases(rootDir);
