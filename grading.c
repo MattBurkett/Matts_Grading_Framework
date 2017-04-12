@@ -41,6 +41,7 @@ typedef struct 		project{
 }project;
 
 const double latePercentage = 0.75;
+const int printQueueSize = 10;
 int autoMode = 0;
 
 int atoic(char* a){
@@ -56,6 +57,31 @@ int atoic(char* a){
 	}
 	free(str);
 	return num;
+}
+
+void FindAndReplace(char buff[], char* newString, char* waldo){
+	char* buffPtr = &buff[0];
+	char  tempBuff[512];
+	char* tmpPtr  = &tempBuff[0];
+	int   waldoLength = strlen(waldo);
+	int   newStringLength = strlen(newString);
+	while(*buffPtr != '\0')
+	{
+		if(strncmp(buffPtr, waldo, waldoLength) == 0)
+		{
+			strcpy(tmpPtr, newString);
+			tmpPtr  += newStringLength;
+			buffPtr += waldoLength;
+		}
+		else
+		{
+			*tmpPtr = *buffPtr;
+			tmpPtr++;
+			buffPtr++;
+		}
+	}
+	*tmpPtr = '\0';
+	strcpy(buff, tempBuff);
 }
 
 void SetUpLocalSymLinks(char* root){
@@ -101,7 +127,6 @@ int ShowStatus(project* thisProject, int curSubmissionNum){
 	printf("rootDir: %s\n", thisProject->rootDir);
 	if(autoMode == 1) printf("auto mode: \e[0;32mON\e[0m\n"); else printf("auto mode: \e[0;31mOFF\e[0m\n");
 	printf("current status queue: \n");
-	const int printQueueSize = 10;
 	char firstName[printQueueSize][64];
 	char lastName[printQueueSize][64];
 	int maxFirstNameLength = 0;
@@ -126,12 +151,11 @@ int ShowStatus(project* thisProject, int curSubmissionNum){
 	}
 	printf("   .\n   .\n   .\n\n");
 	printf("options: \n");
-	//printf("  save - Saves grading progress for future grading\n"); //didn't implement load yet, so no point in saving
 	printf("  skip - Skips the next student for grading\n");
 	printf("  skip %%N - grades students starting at element %d+N\n", curSubmissionNum);
 	printf("  goto %%N - grades students starting at element N\n");
 	printf("  gotos %%s - grades students starting at the first student dir begining with %%s\n");
-	printf("  exit - Exits the program (don't forget to save first!)\n");
+	printf("  exit - Exits the program\n");
 	printf("  auto (on or off) - while on, automatically use found partial credit score\n");
 	printf("  grade - Grades the next student submission\n");
 	printf("  *nothing* - Repeates previous skip command or Grades the next student submission\n");
@@ -139,12 +163,7 @@ int ShowStatus(project* thisProject, int curSubmissionNum){
 	fgets(buff, 256, stdin);
 	while(1)
 	{
-		if(strcmp(buff, "save\n") == 0)
-		{
-			sprintf(buff, "echo \"%d\" > %s/Grading_Materials/save.txt", curSubmissionNum, thisProject->rootDir);
-			system(buff);
-		}
-		else if(strcmp(buff, "exit\n") == 0)
+		if(strcmp(buff, "exit\n") == 0)
 			{ FreeMem(thisProject); exit(1);}
 		else if(strcmp(buff, "skip\n") == 0)
 		{
@@ -235,7 +254,6 @@ void sort(project* thisProject, submission* arr, int n){
 	for(int i = 0; i < n; i++)
 		for(int j = i; j < n; j++)
 		{
-			//sort in ascending order based on 2rd element of directory name, i.e. last name
 			char* namei;
 			char* namej;
 			if(arr[i].late == 0)
@@ -264,6 +282,7 @@ int Filecmp(char* a, char* b){
  	sprintf(buff, "Files %s and %s are identical\n", a, b);
 
 	FILE *cmp = fopen("tmp.txt", "r");
+	if (cmp == NULL) return 0;
 	fgets(buff2, 256, cmp);
 	fclose(cmp);
 	system("rm tmp.txt");
@@ -374,17 +393,24 @@ double AssignPartialCredit(project* thisProject, char* studentOutput, int testID
 				printf("\r  Test %d partial credit description (max 256 characters): ", testID);
 				fgets(buf, 256, stdin); buf[strcspn(buf, "\n")] = '\0';
 
+				char buf2[256];
+				sprintf(buf2, "%s -%.1f ", buf, thisProject->tests[testID].maxScore - thisScore);
+				strcpy(buf, buf2);
 				strcpy(studentSubmission->studentScores[testID].description, buf);
 
-				char buff1[512], buff2[512], buff3[512], nameBuff[256];
-				strcpy(nameBuff, studentSubmission->studentName); *strstr(nameBuff, " ") = '_'; *strstr(nameBuff, " ") = '\0'; 
-				sprintf(buff1, "mkdir %sGrading_Materials/partial_credits/test%d 2>/dev/null; ", thisProject->rootDir, testID);
-				sprintf(buff2, "cp %s %sGrading_Materials/partial_credits/test%d/%s%d.txt; ", studentOutput, thisProject->rootDir, testID, nameBuff, testID);
-				sprintf(buff3, "echo \"%1.1f\n%s\" > %sGrading_Materials/partial_credits/test%d/%s%d.txt.score;", thisScore, studentSubmission->studentScores[testID].description, thisProject->rootDir, testID, nameBuff, testID);
-				strcat(buff1, buff2);
-				strcat(buff1, buff3);
-				system(buff1);
-
+				printf("\r  Save for automated grading? ('yes' or 'no') ");
+				fgets(buf, 256, stdin);
+				if(strcmp(buf,"yes\n") == 0)
+				{	
+					char buff1[512], buff2[512], buff3[512], nameBuff[256];
+					strcpy(nameBuff, studentSubmission->studentName); *strstr(nameBuff, " ") = '_'; *strstr(nameBuff, " ") = '\0'; 
+					sprintf(buff1, "mkdir %sGrading_Materials/partial_credits/test%d 2>/dev/null; ", thisProject->rootDir, testID);
+					sprintf(buff2, "cp %s %sGrading_Materials/partial_credits/test%d/%s%d.txt; ", studentOutput, thisProject->rootDir, testID, nameBuff, testID);
+					sprintf(buff3, "echo \"%1.1f\n%s\" > %sGrading_Materials/partial_credits/test%d/%s%d.txt.score;", thisScore, studentSubmission->studentScores[testID].description, thisProject->rootDir, testID, nameBuff, testID);
+					strcat(buff1, buff2);
+					strcat(buff1, buff3);
+					system(buff1);
+				}
 				return studentSubmission->studentScores[testID].score;
 			}
 			else if(strcmp(buf, "subl\n") == 0)
@@ -549,8 +575,8 @@ void ReadStudentDirs(project* thisProject){
 		{
 			thisProject->submissions[curSubmission].studentScores = (score*)malloc(sizeof(score)*thisProject->testCount);
 			thisProject->submissions[curSubmission].studentName = NULL;
-			thisProject->submissions[curSubmission].studentDirName = (char*)malloc(sizeof(char)*(strlen(thisProject->rootDir)+strlen("On_Time/")+strlen(curDirElem->d_name)+1));
-			sprintf(thisProject->submissions[curSubmission].studentDirName, "%sOn_Time/%s", thisProject->rootDir, curDirElem->d_name);
+			thisProject->submissions[curSubmission].studentDirName = (char*)malloc(sizeof(char)*(strlen(thisProject->rootDir)+strlen("On_Time//")+strlen(curDirElem->d_name)+1));
+			sprintf(thisProject->submissions[curSubmission].studentDirName, "%sOn_Time/%s/", thisProject->rootDir, curDirElem->d_name);
 			thisProject->submissions[curSubmission].late = 1;
 			thisProject->submissions[curSubmission].total = 0;
 			strcpy(buff, curDirElem->d_name);
@@ -568,10 +594,8 @@ void ReadStudentDirs(project* thisProject){
 		{
 			thisProject->submissions[curSubmission].studentScores = (score*)malloc(sizeof(score)*thisProject->testCount);
 			thisProject->submissions[curSubmission].studentName = NULL;
-			thisProject->submissions[curSubmission].studentDirName = (char*)malloc(sizeof(char)*(strlen(thisProject->rootDir)+strlen("Late/")+strlen(curDirElem->d_name)+1));
-			strcpy(thisProject->submissions[curSubmission].studentDirName, thisProject->rootDir); 
-			strcat(thisProject->submissions[curSubmission].studentDirName, "Late/"); 
-			strcat(thisProject->submissions[curSubmission].studentDirName, curDirElem->d_name);
+			thisProject->submissions[curSubmission].studentDirName = (char*)malloc(sizeof(char)*(strlen(thisProject->rootDir)+strlen("Late//")+strlen(curDirElem->d_name)+1));
+			sprintf(thisProject->submissions[curSubmission].studentDirName, "%sLate/%s/", thisProject->rootDir, curDirElem->d_name);
 			thisProject->submissions[curSubmission].late = 0;
 			thisProject->submissions[curSubmission].total = 0;
 			strcpy(buff, curDirElem->d_name);
@@ -635,7 +659,7 @@ void ValgrindTest(project* thisProject, char command[], int j){
 }
 
 void GradeSubmissions(project* thisProject){
-	const int buffSize = 128;
+	const int buffSize = 512;
 	char buf[buffSize];
 	for(int i = 0; i < thisProject->submissionCount; i++)
 	{
@@ -727,7 +751,7 @@ void GradeSubmissions(project* thisProject){
 			ValgrindTest(thisProject, buff2, j);		
 		}
 
-		printf("\nAditional commands\n'next' or blank to continue to the next student\n\n");
+		printf("\nAditional commands\n'help' for additional commands\n\n");
 		printf("[Grading] ");
 		fgets(buf, buffSize, stdin);
 		buf[strcspn(buf, "\n")] = '\0';
@@ -775,8 +799,23 @@ void GradeSubmissions(project* thisProject){
 			else if (strncmp(buf, "valgrind ", strlen("valgrind ")) == 0){
 				ValgrindTest(thisProject, "valgrind ./a.out --leak-check=full", atoi(buf+strlen("valgrind ")));
 			}
+			else if (strncmp(buf, "help", 4) == 0)
+			{
+				printf("  next or *blank* - continues to next submission\n");
+				printf("  exit - exits the program\n");
+				printf("  subl diff - shows all the diff files\n");
+				printf("  subl out  - shows all the output files\n");
+				printf("  subl all  - shows the submissino folder\n");
+				printf("  valgrind %%N - runs valgrind on test case N\n");
+				printf("  use '{}'  - it will relpase '{}' with the root directory\n");
+				printf("  use '[]'  - it will relpase '[]' with the current submissino directory\n\n");
+			}
 			else 	
+			{
+				FindAndReplace(buf, thisProject->rootDir, "'{}'");
+				FindAndReplace(buf, thisProject->submissions[i].studentDirName, "'[]'");
 				system(buf);
+			}
 
 			printf("[Grading] ");
 			fgets(buf, buffSize, stdin);
