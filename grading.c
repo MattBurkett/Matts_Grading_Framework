@@ -122,7 +122,7 @@ void FreeMem(project* thisProject){
 //on return of n != 0, skip that many lines of grading
 int ShowStatus(project* thisProject, int curSubmissionNum){
 	system("clear");
-	char buff[256];
+	char buff[256]; char* buffPtr = &buff[0];
 	static char prevLine[256] = { 'g', 'r', 'a', 'd', 'e', '\n', '\0'};
 	printf("rootDir: %s\n", thisProject->rootDir);
 	if(autoMode == 1) printf("auto mode: \e[0;32mON\e[0m\n"); else printf("auto mode: \e[0;31mOFF\e[0m\n");
@@ -140,6 +140,21 @@ int ShowStatus(project* thisProject, int curSubmissionNum){
 		if(tempFirstNameLen > maxFirstNameLength) maxFirstNameLength = tempFirstNameLen;
 		if(tempLastNameLen > maxLastNameLength) maxLastNameLength = tempLastNameLen;	
 	}
+
+	int i = 0;
+	*(buffPtr++) = '/';
+	for(i = 0; i < maxFirstNameLength + maxLastNameLength + 17; i++)
+		*(buffPtr++) = '-';
+	i = 10;
+	while(i <= curSubmissionNum)
+	{
+		*(buffPtr++) = '-';
+		i *= 10;
+	}
+	*(buffPtr++) = '\\';
+	*buffPtr = '\0';
+	printf("%s\n", buff);
+
 	for(int i = 0; i < printQueueSize && i < thisProject->submissionCount - curSubmissionNum; i++)
 	{
 		char* late;
@@ -147,8 +162,23 @@ int ShowStatus(project* thisProject, int curSubmissionNum){
 			late = "(Late)";
 		else
 			late = "(On Time)";
-		printf("  %d. %*s %*s %*s\n", curSubmissionNum+i, -maxLastNameLength, lastName[i], -maxFirstNameLength, firstName[i], -10, late);
+		printf("| %d. %*s %*s %*s |\n", curSubmissionNum+i, -maxLastNameLength, lastName[i], -maxFirstNameLength, firstName[i], -10, late);
 	}
+
+	buffPtr = &buff[0];
+	*(buffPtr++) = '\\';
+	for(i = 0; i < maxFirstNameLength + maxLastNameLength + 17; i++)
+		*(buffPtr++) = '-';
+	i = 10;
+	while(i < curSubmissionNum + printQueueSize)
+	{
+		*(buffPtr++) = '-';
+		i *= 10;
+	}
+	*(buffPtr++) = '/';
+	*buffPtr = '\0';
+	printf("%s\n", buff);
+
 	printf("   .\n   .\n   .\n\n");
 	printf("options: \n");
 	printf("  skip - Skips the next student for grading\n");
