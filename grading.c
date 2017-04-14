@@ -12,12 +12,10 @@
 typedef struct 		test{
 	char* 			testFileName;			//of the form: '/Grading_Materials/test1.txt'		*must be absolute file paths*
 	char* 			solutionFileName;		//of the form: '/Grading_Materials/solution1.txt'	*must be absolute file paths*
-	int 			testID;					//testID, will start from 1 and increment
 	int 			maxScore;				//maximum amount of points in this test.
 }test;
 
 typedef struct 		score{
-	int 			testID;					//testID, will start from 1 and increment (refers to the struct test.testID)
 	double 			score;					//the score the student recived from this particular test.
 	char			description[256];		//"\0" if test passed or a copy of partialcredit.description otherwise.
 }score;
@@ -248,12 +246,7 @@ int ShowStatus(project* thisProject, int curSubmissionNum){
 			return 0;
 		}
 		else if(strcmp(buff, "\n") == 0)
-			if(strcmp(prevLine, "save\n") == 0)
-			{
-				sprintf(prevLine, "echo \"%d\" > %s/Grading_Materials/save.txt", curSubmissionNum, thisProject->rootDir);
-				system(prevLine);
-			}
-			else if(strcmp(prevLine, "exit\n") == 0)
+			if(strcmp(prevLine, "exit\n") == 0)
 				{ FreeMem(thisProject); exit(1);}
 			else if(strcmp(prevLine, "skip\n") == 0)
 			{
@@ -531,7 +524,6 @@ project *ReadTestCases(char* rootDir){
 
 			thisProject->tests[testNum].testFileName = (char*)malloc(sizeof(char)*(strlen(curFile->d_name)+strlen(rootDir)+strlen("Grading_Materials/test_cases/")+1));
 			sprintf(thisProject->tests[testNum].testFileName, "%s%s%s", rootDir, "Grading_Materials/test_cases/", curFile->d_name);
-			thisProject->tests[testNum].testID = testNum;
 		}
 		else if (strncmp(curFile->d_name, "solution", 8) == 0)
 		{
@@ -540,7 +532,6 @@ project *ReadTestCases(char* rootDir){
 
 			thisProject->tests[solutionNum].solutionFileName = (char*)malloc(sizeof(char)*(strlen(curFile->d_name)+strlen(rootDir)+strlen("Grading_Materials/test_cases/")+1));
 			sprintf(thisProject->tests[solutionNum].solutionFileName, "%s%s%s", rootDir, "Grading_Materials/test_cases/", curFile->d_name);
-			thisProject->tests[solutionNum].testID = solutionNum;	//superfluous
 		}
 		else if (strncmp(curFile->d_name, "valgrind", 8) == 0)
 		{
@@ -548,7 +539,6 @@ project *ReadTestCases(char* rootDir){
 			if(valgrindNum >= numTests || valgrindNum < 1) {printf("Invalid Valgrind test name %s\n", curFile->d_name); exit(-1);}
 			thisProject->valTests[valgrindNum].testFileName = (char*)malloc(sizeof(char)*(strlen(curFile->d_name)+strlen(rootDir)+strlen("Grading_Materials/test_cases/")+1));
 			sprintf(thisProject->valTests[valgrindNum].testFileName, "%s%s%s", rootDir, "Grading_Materials/test_cases/", curFile->d_name);
-			thisProject->valTests[valgrindNum].testID = valgrindNum;
 		}
 	}
 	closedir(testsDir);
@@ -650,9 +640,15 @@ void ValgrindTest(project* thisProject, char command[], int j){
 	char buff2[256];
 	printf("Valgrind %d ...... \e[0;93m[running]\e[0m", j);
 	fflush(stdout);
-	sprintf(buff, "%s 2>&1 < ../../Grading_Materials/test_cases/test%d.txt | grep \"total heap usage\" > temp.txt", command, j);
+	//sprintf(buff, "%s 2>&1 < ../../Grading_Materials/test_cases/test%d.txt | grep \"total heap usage\" > temp.txt", command, j);
+	sprintf(buff, "%s 2>temp1.txt 1> /dev/null < ../../Grading_Materials/test_cases/test%d.txt", command, j);
 	system(buff);
-	FILE* valOut = fopen("temp.txt", "r");
+	sprintf(buff2, "cp temp1.txt %s/Grading_Materials/log.txt; grep \"total heap usage\" temp1.txt > temp2.txt", thisProject->rootDir);
+	system(buff2);
+
+
+	
+	FILE* valOut = fopen("temp2.txt", "r");
 	if(valOut != NULL)
 	{
 		fgets(buff2, 256, valOut);
@@ -680,12 +676,13 @@ void ValgrindTest(project* thisProject, char command[], int j){
 			printf("\rValgrind %d ...... \e[0;31m[interupted]\e[0m\n", j);
 		}
 		fclose(valOut);
-		system("rm temp.txt");
+		system("rm temp1.txt temp2.txt");
 	}
 	else
 	{
 		printf("\rValgrind %d ...... \e[0;31m[no output]\e[0m\n", j);
 	}
+	
 }
 
 void GradeSubmissions(project* thisProject){
@@ -756,6 +753,8 @@ void GradeSubmissions(project* thisProject){
 			}
 			else
 			{
+				sprintf(buff6, "cp grading_output/test%d.out.txt %sGrading_Materials/log.txt", j, thisProject->rootDir);
+				system(buff6);
 				thisProject->submissions[i].studentScores[j].score = AssignPartialCredit(thisProject, buff3, j, &(thisProject->submissions[i]));
 				printf("\rTest %d: .......... ", j);
 				if(thisProject->submissions[i].studentScores[j].score == 0)
@@ -875,6 +874,8 @@ void GradeSubmissions(project* thisProject){
 		}
 		printf("\n\nContinue...");
 		fgets(buf, 256, stdin);
+		sprintf(buf, "rm %s/Grading_Materials/log.txt", thisProject->rootDir);
+		system(buf);
 	}
 }
 
