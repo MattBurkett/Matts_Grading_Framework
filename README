@@ -1,5 +1,5 @@
 Included Files:
-	grading.c 		- Souce code for the grading framework
+	grading.c 		f- Souce code for the grading framework
 	makefile		   
 		all: 		- compile grading.c
 		setUp: 		- setup a new directory called 'newProj'
