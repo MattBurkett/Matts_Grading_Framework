@@ -638,13 +638,13 @@ void ReadStudentDirs(project* thisProject){
 void ValgrindTest(project* thisProject, char command[], int j){
 	char buff[256];
 	char buff2[256];
-	printf("Valgrind %d ...... \e[0;93m[running]\e[0m", j);
+	printf("Valgrind %2d: ...... \e[0;93m[running]\e[0m", j);
 	fflush(stdout);
-	//sprintf(buff, "%s 2>&1 < ../../Grading_Materials/test_cases/test%d.txt | grep \"total heap usage\" > temp.txt", command, j);
 	sprintf(buff, "%s 2>temp1.txt 1> /dev/null < ../../Grading_Materials/test_cases/test%d.txt", command, j);
 	system(buff);
 	sprintf(buff2, "cp temp1.txt %s/Grading_Materials/log.txt; grep \"total heap usage\" temp1.txt > temp2.txt", thisProject->rootDir);
 	system(buff2);
+	buff2[0] = '\0';
 
 
 	
@@ -652,7 +652,7 @@ void ValgrindTest(project* thisProject, char command[], int j){
 	if(valOut != NULL)
 	{
 		fgets(buff2, 256, valOut);
-		if(strcmp(buff, buff2) != 0)
+		if(strcmp(buff, buff2) != 0 && buff2[0] != '\0')
 		{
 			strcpy(buff, buff2);
 			char* buffPtr = &buff[strcspn(buff, ":")];
@@ -667,20 +667,24 @@ void ValgrindTest(project* thisProject, char command[], int j){
 				strcpy(color, "\e[0;93m");
 			else
 				strcpy(color, "\e[0;31m");
-			sprintf(buff2, "\rValgrind %d ...... %s[%.1f%%]\e[0m %s (frees) / %s (allocs)\n", j, color, freePercentage*100, frees, allocs);
+			sprintf(buff2, "\rValgrind %2d: ...... %s[%.1f%%]\e[0m %s (frees) / %s (allocs)\n", j, color, freePercentage*100, frees, allocs);
 			printf("\r                            \r");
 			printf("%s", buff2);
 		}
+		else if (buff2[0] == '\0')
+		{
+			printf("\rValgrind %2d: ...... \e[0;31m[no memory output]\e[0m\n", j);
+		}
 		else
 		{
-			printf("\rValgrind %d ...... \e[0;31m[interupted]\e[0m\n", j);
+			printf("\rValgrind %2d: ...... \e[0;31m[interupted]\e[0m\n", j);
 		}
 		fclose(valOut);
 		system("rm temp1.txt temp2.txt");
 	}
 	else
 	{
-		printf("\rValgrind %d ...... \e[0;31m[no output]\e[0m\n", j);
+		printf("\rValgrind %2d: ...... \e[0;31m[no file]\e[0m\n", j);
 	}
 	
 }
@@ -728,9 +732,8 @@ void GradeSubmissions(project* thisProject){
 
 			char buff4[256];
 			sprintf(buff4, "diff grading_output/test%d.out.txt -s %s > grading_output/test%ddiff.txt", j, thisProject->tests[j].solutionFileName, j);
-			//sprintf(buff4, "colordiff grading_output/test%d.out.txt -s %s > grading_output/test%ddiff.txt", j, thisProject->tests[j].solutionFileName, j);
 
-			printf("Test %d: .......... \e[0;93m[running]\e[0m", j);
+			printf("Test %2d: .......... \e[0;93m[running]\e[0m", j);
 			fflush(stdout);
 
 			system(buff1);
@@ -749,7 +752,7 @@ void GradeSubmissions(project* thisProject){
 			{
 				thisProject->submissions[i].studentScores[j].score = (double)thisProject->tests[j].maxScore;
 				strcpy(thisProject->submissions[i].studentScores[j].description, "");
-				printf("\rTest %d: .......... \e[0;32m%s\e[0m %.1f/%d\n", j, "[passed]", thisProject->submissions[i].studentScores[j].score, thisProject->tests[j].maxScore);
+				printf("\rTest %2d: .......... \e[0;32m%s\e[0m %.1f/%d\n", j, "[passed]", thisProject->submissions[i].studentScores[j].score, thisProject->tests[j].maxScore);
 			}
 			else
 			{
@@ -851,6 +854,7 @@ void GradeSubmissions(project* thisProject){
 			buf[strcspn(buf, "\n")] = '\0';
 		}
 
+		
 		printf("Grade Summary: \n");
 		for(int j = 1; j < thisProject->testCount; j++)
 		{
@@ -897,9 +901,8 @@ void GetMaxScores(project* thisProject){
 
 int main(int argc, char*argv[]){
 	char rootDir[256]; getcwd(rootDir, 245); 
+	char buff[512];
 	char* tmp = &rootDir[0]; while(1) if(strcmp(tmp, "Grading_Materials") == 0) break; else tmp++; *tmp = '\0';
-
-	//system("bash 2> /dev/null");
 
 	project *thisProject;
 	thisProject = ReadTestCases(rootDir);
@@ -908,5 +911,7 @@ int main(int argc, char*argv[]){
 	GradeSubmissions(thisProject);
 
 	FreeMem(thisProject);
+	sprintf("rm %sGrading_Materials/log.txt", buff);
+	system(buff);
 	exit(1);
 }
