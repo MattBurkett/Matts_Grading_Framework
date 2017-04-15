@@ -854,7 +854,35 @@ void GradeSubmissions(project* thisProject){
 			buf[strcspn(buf, "\n")] = '\0';
 		}
 
-		
+		char buff[2048], buff2[2048];
+		sprintf(buff, "Grade Summary  \n"
+			          "Student: %s\n|\n", thisProject->submissions[i].studentName);
+		for(int j = 1; j < thisProject->testCount; j++)
+		{
+			if(thisProject->submissions[i].studentScores[j].score < 0.1)
+				sprintf(buff2, "|\tTest %d: %.1f/%d\n", j, thisProject->submissions[i].studentScores[j].score, thisProject->tests[j].maxScore);
+			else if(thisProject->submissions[i].studentScores[j].score < (double)thisProject->tests[j].maxScore - 0.1)
+				sprintf(buff2, "|\tTest %d: %.1f/%d\n", j, thisProject->submissions[i].studentScores[j].score, thisProject->tests[j].maxScore);
+			else 
+				sprintf(buff2, "|\tTest %d: %.1f/%d\n", j, thisProject->submissions[i].studentScores[j].score, thisProject->tests[j].maxScore);
+			strcat(buff, buff2);
+		}
+
+		strcat(buff, "|\nDescription: ");
+		for(int j = 1; j < thisProject->testCount; j++)
+		{
+			if(strlen(thisProject->submissions[i].studentScores[j].description) != 0)
+			{
+				sprintf(buff2, "\n|\tTest %d: %s", j, thisProject->submissions[i].studentScores[j].description);
+				strcat(buff, buff2);
+			}
+		}
+
+		sprintf(buff2, "echo \"%s\" > %sGrading_Materials/log.txt; echo \"%s\";", buff, thisProject->rootDir, buff);
+		system(buff2);
+
+
+		/*
 		printf("Grade Summary: \n");
 		for(int j = 1; j < thisProject->testCount; j++)
 		{
@@ -876,10 +904,13 @@ void GradeSubmissions(project* thisProject){
 				printf("Test %d: %s", j, thisProject->submissions[i].studentScores[j].description);
 			}
 		}
+		*/
 		printf("\n\nContinue...");
 		fgets(buf, 256, stdin);
-		sprintf(buf, "rm %s/Grading_Materials/log.txt", thisProject->rootDir);
-		system(buf);
+		
+
+		//sprintf(buf, "rm %s/Grading_Materials/log.txt", thisProject->rootDir);
+		//system(buf);
 	}
 }
 
