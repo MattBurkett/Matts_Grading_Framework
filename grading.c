@@ -301,7 +301,7 @@ void sort(project* thisProject, submission* arr, int n){
 int Filecmp(char* a, char* b){
 	char buff[256];
 	char buff2[256];
-	sprintf(buff, "diff s %s %s > tmp.txt", a, b);
+	sprintf(buff, "diff -w -s %s %s > tmp.txt", a, b);
  	sprintf(buff, "Files %s and %s are identical\n", a, b);
 
 	FILE *cmp = fopen("tmp.txt", "r");
@@ -356,7 +356,7 @@ double AssignPartialCredit(project* thisProject, char* studentOutput, int testID
 	char buff[512], buff2[256];
 	char* matchesBuff = (char*)malloc(sizeof(char)*512); matchesBuff[0] = '\0';
 	char* matchesBuffScore = (char*)malloc(sizeof(char)*512); matchesBuff[0] = '\0';
-	sprintf(buff, "find %sGrading_Materials/partial_credits/test%d/ -type f -exec diff -s -q grading_output/test%d.out.txt '{}' \\; | grep -o \"and .* are identical\" | grep -o \"[0-9A-Za-z_./]*.txt\" > partialcreditmatches.txt", thisProject->rootDir, testID, testID);
+	sprintf(buff, "find %sGrading_Materials/partial_credits/test%d/ -type f -exec diff -w -q -s grading_output/test%d.out.txt '{}' \\; | grep -o \"and .* are identical\" | grep -o \"[0-9A-Za-z_./]*.txt\" > partialcreditmatches.txt", thisProject->rootDir, testID, testID);
 	sprintf(buff2, "mkdir %sGrading_Materials/partial_credits/test%d 2>/dev/null", thisProject->rootDir, testID);
 	system(buff2);
 	system(buff);
@@ -731,7 +731,7 @@ void GradeSubmissions(project* thisProject){
 			sprintf(buff3, "grading_output/test%d.out.txt", j);
 
 			char buff4[256];
-			sprintf(buff4, "diff grading_output/test%d.out.txt -s %s > grading_output/test%ddiff.txt", j, thisProject->tests[j].solutionFileName, j);
+			sprintf(buff4, "diff -w grading_output/test%d.out.txt -s %s > grading_output/test%ddiff.txt", j, thisProject->tests[j].solutionFileName, j);
 
 			printf("Test %2d: .......... \e[0;93m[running]\e[0m", j);
 			fflush(stdout);
